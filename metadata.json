@@ -1,0 +1,6 @@
+{
+  "name": "Contador de Cilindros de Gases",
+  "description": "Aplicativo prático e ágil para contagem e inventário de cilindros de gases com exportação para WhatsApp.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
