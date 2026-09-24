@@ -2,6 +2,22 @@
 
 > Aplicativo progressivo, moderno e de alta performance desenvolvido para controle de estoque, conferência de turno e inventário ágil de cilindros de gases industriais, medicinais e especiais.
 
+[![Preview Online](https://img.shields.io/badge/Preview-Demonstração_Online-0284c7?style=for-the-badge&logo=googlechrome&logoColor=white)](https://ais-pre-o67bldr2pt3euz6n5yovjr-165417157091.us-west1.run.app)
+[![GitHub Pages](https://img.shields.io/badge/Deploy-GitHub_Pages-22c55e?style=for-the-badge&logo=githubactions&logoColor=white)](#-deploy-automático-no-github-pages)
+
+---
+
+## 🔗 Demonstração / Preview Online
+
+Você pode testar a aplicação em execução diretamente pelo link de demonstração:
+
+- 🌐 **Versão de Demonstração (Live Preview)**:  
+  👉 **[https://ais-pre-o67bldr2pt3euz6n5yovjr-165417157091.us-west1.run.app](https://ais-pre-o67bldr2pt3euz6n5yovjr-165417157091.us-west1.run.app)**
+
+- 🚀 **GitHub Pages (Produção)**:  
+  `https://leonardoconstantino.github.io/contador-cilindros-gases/`  
+  *(Publicado automaticamente após seguir os passos de ativação abaixo)*
+
 ---
 
 ## 📌 Visão Geral
@@ -94,9 +110,34 @@ O aplicativo estará acessível em `http://localhost:3000`.
 
 ---
 
+## 🚀 Deploy Automático no GitHub Pages
+
+O projeto já inclui um workflow pronto e automatizado do GitHub Actions configurado em [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml).
+
+### Como ativar no GitHub:
+1. Envie o código para o seu repositório no GitHub:
+   ```bash
+   git add .
+   git commit -m "feat: setup github pages workflow"
+   git push origin main
+   ```
+2. No seu repositório no GitHub, acesse a aba **Settings** > **Pages** (no menu lateral esquerdo).
+3. Na seção **Build and deployment**:
+   - Em **Source**, altere de *"Deploy from a branch"* para **GitHub Actions**.
+4. Pronto! O workflow será disparado automaticamente a cada `push` na branch `main` (ou `master`), compilando o Vite e publicando o app no endereço:
+   ```
+   https://<seu-usuario>.github.io/<nome-do-repositorio>/
+   ```
+> **Nota de compatibilidade:** O `vite.config.ts` já está preparado com resolução dinâmica de caminho base (`base: process.env.BASE_PATH || './'`), garantindo que todos os assets, fontes e ícones sejam carregados corretamente tanto na raiz quanto em subdiretórios de repositórios do GitHub Pages.
+
+---
+
 ## 📂 Estrutura do Projeto
 
 ```text
+├── .github/
+│   └── workflows/
+│       └── deploy.yml         # Workflow de CI/CD para GitHub Pages
 ├── src/
 │   ├── components/            # Componentes modulares da interface
 │   │   ├── AddCounterModal.tsx        # Cadastro de novos tipos de gases
