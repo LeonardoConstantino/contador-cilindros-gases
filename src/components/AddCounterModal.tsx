@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Plus, Sparkles, Check } from 'lucide-react';
 import { POPULAR_GASES, GasPreset } from '../constants/defaultGases';
+import { triggerHaptic } from '../utils/haptics';
 
 interface AddCounterModalProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ export const AddCounterModal: React.FC<AddCounterModalProps> = ({
   if (!isOpen) return null;
 
   const handleSelectPreset = (preset: GasPreset) => {
+    triggerHaptic('light');
     setSelectedPreset(preset);
     if (!labelInput.trim()) {
       setLabelInput(preset.label);
@@ -42,6 +44,7 @@ export const AddCounterModal: React.FC<AddCounterModalProps> = ({
     const names = trimmed.split(';').map(s => s.trim()).filter(Boolean);
     if (names.length === 0) return;
 
+    triggerHaptic('success');
     const toAdd = names.map(name => {
       // Match color from preset if available
       const match = POPULAR_GASES.find(p => p.label.toLowerCase() === name.toLowerCase());

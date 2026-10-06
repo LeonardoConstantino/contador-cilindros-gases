@@ -18,7 +18,17 @@ export interface InventoryMetrics {
   totalCylinders: number;
   distinctTypes: number;
   lowStockCount: number;
+  favoritesCount?: number;
 }
+
+export type SortOptionType =
+  | 'default'
+  | 'name-asc'
+  | 'name-desc'
+  | 'critical'
+  | 'full-desc'
+  | 'empty-desc'
+  | 'total-desc';
 
 export interface ToastMessage {
   id: string;

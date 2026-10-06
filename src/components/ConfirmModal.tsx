@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertTriangle, X } from 'lucide-react';
+import { triggerHaptic } from '../utils/haptics';
 
 interface ConfirmModalProps {
   isOpen: boolean;
@@ -21,6 +22,16 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   onCancel,
 }) => {
   if (!isOpen) return null;
+
+  const handleConfirm = () => {
+    triggerHaptic(confirmVariant === 'danger' ? 'error' : 'warning');
+    onConfirm();
+  };
+
+  const handleCancel = () => {
+    triggerHaptic('light');
+    onCancel();
+  };
 
   return (
     <div
@@ -44,7 +55,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
                 {title}
               </h3>
               <button
-                onClick={onCancel}
+                onClick={handleCancel}
                 className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-md"
               >
                 <X className="w-4 h-4" />
@@ -59,14 +70,14 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
         <div className="mt-5 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800 pt-3">
           <button
             type="button"
-            onClick={onCancel}
+            onClick={handleCancel}
             className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
           >
             Cancelar
           </button>
           <button
             type="button"
-            onClick={onConfirm}
+            onClick={handleConfirm}
             className={`px-4 py-2 text-sm font-bold rounded-lg text-white transition-colors shadow-xs ${
               confirmVariant === 'danger'
                 ? 'bg-rose-600 hover:bg-rose-700 active:bg-rose-800'

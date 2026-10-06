@@ -1,6 +1,16 @@
 import React from 'react';
-import { InventoryMetrics } from '../types/gas';
-import { CheckCircle2, AlertCircle, Layers, ShieldAlert, ArrowRightLeft } from 'lucide-react';
+import { InventoryMetrics, SortOptionType } from '../types/gas';
+import { triggerHaptic } from '../utils/haptics';
+import {
+  CheckCircle2,
+  AlertCircle,
+  Layers,
+  ShieldAlert,
+  ArrowRightLeft,
+  Search,
+  X,
+  ArrowUpDown,
+} from 'lucide-react';
 
 interface MetricsBarProps {
   metrics: InventoryMetrics;
@@ -10,6 +20,8 @@ interface MetricsBarProps {
   onSearchChange: (query: string) => void;
   transferModeEnabled: boolean;
   onToggleTransferMode: (enabled: boolean) => void;
+  sortOption: SortOptionType;
+  onSortChange: (sort: SortOptionType) => void;
 }
 
 export const MetricsBar: React.FC<MetricsBarProps> = ({
@@ -20,6 +32,8 @@ export const MetricsBar: React.FC<MetricsBarProps> = ({
   onSearchChange,
   transferModeEnabled,
   onToggleTransferMode,
+  sortOption,
+  onSortChange,
 }) => {
   return (
     <div className="space-y-3.5">
@@ -97,8 +111,9 @@ export const MetricsBar: React.FC<MetricsBarProps> = ({
         </div>
       </div>
 
-      {/* Barra de Busca e Filtros Rápidos */}
-      <div className="flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center justify-between">
+      {/* Barra de Busca, Ordenação e Filtros Rápidos */}
+      <div className="flex flex-col lg:flex-row gap-2.5 items-stretch lg:items-center justify-between">
+        {/* Input de Busca com Botão 'X' para Limpar */}
         <div className="relative flex-1">
           <input
             id="search-gas-input"
@@ -106,69 +121,131 @@ export const MetricsBar: React.FC<MetricsBarProps> = ({
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Buscar por nome do gás (ex: Oxigênio, CO2, Argônio)..."
-            className="w-full px-3.5 py-2 pl-9 rounded-lg text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-900 dark:text-slate-100 shadow-xs"
+            className="w-full px-3.5 py-2 pl-9 pr-9 rounded-lg text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-900 dark:text-slate-100 shadow-xs placeholder:text-slate-400"
           />
-          <svg
-            className="w-4 h-4 text-slate-400 absolute left-3 top-2.5"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
           {searchQuery && (
             <button
               type="button"
-              onClick={() => onSearchChange('')}
-              className="absolute right-2.5 top-2 text-xs font-semibold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              onClick={() => {
+                triggerHaptic('light');
+                onSearchChange('');
+              }}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              title="Limpar busca"
+              aria-label="Limpar busca"
             >
-              Limpar
+              <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
 
-        {/* Filtros em Abas */}
-        <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/80 p-0.5 shrink-0">
-          <button
-            id="filter-tab-all"
-            type="button"
-            onClick={() => onFilterChange('all')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-              activeFilter === 'all'
-                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            Todos ({metrics.distinctTypes})
-          </button>
-          <button
-            id="filter-tab-favorites"
-            type="button"
-            onClick={() => onFilterChange('favorites')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-              activeFilter === 'favorites'
-                ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            ★ Favoritos
-          </button>
-          {metrics.lowStockCount > 0 && (
+        {/* Controles de Ordenação e Filtros */}
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-between sm:justify-start">
+          {/* Seletor de Ordenação Inteligente */}
+          <div className="relative inline-flex items-center">
+            <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 pointer-events-none" />
+            <select
+              id="sort-counters-select"
+              value={sortOption}
+              onChange={(e) => {
+                triggerHaptic('light');
+                onSortChange(e.target.value as SortOptionType);
+              }}
+              className="text-xs font-semibold pl-7 pr-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-xs appearance-none cursor-pointer"
+              title="Ordenar lista de cilindros"
+            >
+              <option value="default">📌 Padrão (Favoritos)</option>
+              <option value="critical">🚨 Mais Críticos Primeiro</option>
+              <option value="name-asc">🔤 Nome (A ➔ Z)</option>
+              <option value="name-desc">🔤 Nome (Z ➔ A)</option>
+              <option value="full-desc">🟢 Mais Cheios</option>
+              <option value="empty-desc">🔴 Mais Vazios</option>
+              <option value="total-desc">📦 Maior Total Geral</option>
+            </select>
+          </div>
+
+          {/* Filtros em Abas com Badges Contadores */}
+          <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/80 p-0.5 shrink-0">
+            {/* Aba Todos */}
+            <button
+              id="filter-tab-all"
+              type="button"
+              onClick={() => {
+                triggerHaptic('light');
+                onFilterChange('all');
+              }}
+              className={`px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-1.5 ${
+                activeFilter === 'all'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <span>Todos</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                activeFilter === 'all'
+                  ? 'bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300'
+                  : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+              }`}>
+                {metrics.distinctTypes}
+              </span>
+            </button>
+
+            {/* Aba Favoritos */}
+            <button
+              id="filter-tab-favorites"
+              type="button"
+              onClick={() => {
+                triggerHaptic('light');
+                onFilterChange('favorites');
+              }}
+              className={`px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-1.5 ${
+                activeFilter === 'favorites'
+                  ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-xs font-semibold'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <span>★ Favoritos</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                (metrics.favoritesCount ?? 0) > 0
+                  ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300'
+                  : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+              }`}>
+                {metrics.favoritesCount ?? 0}
+              </span>
+            </button>
+
+            {/* Aba Estoque Crítico / Baixo */}
             <button
               id="filter-tab-lowstock"
               type="button"
-              onClick={() => onFilterChange('low-stock')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5 ${
+              onClick={() => {
+                triggerHaptic('light');
+                onFilterChange('low-stock');
+              }}
+              className={`px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5 ${
                 activeFilter === 'low-stock'
                   ? 'bg-rose-600 text-white shadow-xs'
-                  : 'text-amber-700 dark:text-amber-400 bg-amber-100/70 dark:bg-amber-950/60 hover:bg-amber-200'
+                  : metrics.lowStockCount > 0
+                  ? 'text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/40'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping inline-block" />
-              <span>Estoque Crítico ({metrics.lowStockCount})</span>
+              {metrics.lowStockCount > 0 && (
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping inline-block" />
+              )}
+              <span>Alerta</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                activeFilter === 'low-stock'
+                  ? 'bg-white text-rose-700'
+                  : metrics.lowStockCount > 0
+                  ? 'bg-rose-200 dark:bg-rose-900 text-rose-800 dark:text-rose-200'
+                  : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+              }`}>
+                {metrics.lowStockCount}
+              </span>
             </button>
-          )}
+          </div>
         </div>
       </div>
 
@@ -182,7 +259,10 @@ export const MetricsBar: React.FC<MetricsBarProps> = ({
             id="toggle-transfer-shortcut"
             type="checkbox"
             checked={transferModeEnabled}
-            onChange={(e) => onToggleTransferMode(e.target.checked)}
+            onChange={(e) => {
+              triggerHaptic('medium');
+              onToggleTransferMode(e.target.checked);
+            }}
             className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-slate-300 dark:border-slate-600"
           />
           <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200">

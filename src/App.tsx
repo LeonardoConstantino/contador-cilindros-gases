@@ -1,5 +1,12 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { GasCounter, InventoryMetrics, ToastMessage, CountSnapshot, ExportSettings } from './types/gas';
+import {
+  GasCounter,
+  InventoryMetrics,
+  ToastMessage,
+  CountSnapshot,
+  ExportSettings,
+  SortOptionType,
+} from './types/gas';
 import { POPULAR_GASES } from './constants/defaultGases';
 import { Header } from './components/Header';
 import { MetricsBar } from './components/MetricsBar';
@@ -9,6 +16,7 @@ import { ExportModal } from './components/ExportModal';
 import { ConfirmModal } from './components/ConfirmModal';
 import { ResetIndividualModal } from './components/ResetIndividualModal';
 import { HistoryModal } from './components/HistoryModal';
+import { BackupModal } from './components/BackupModal';
 import { ToastContainer } from './components/ToastContainer';
 import { Plus, RotateCcw, Sparkles } from 'lucide-react';
 import {
@@ -18,12 +26,15 @@ import {
   clearAllHistory,
   createSnapshotFromCounters,
 } from './utils/historyStorage';
+import { AppBackupData } from './utils/backupStorage';
+import { triggerHaptic } from './utils/haptics';
 import { usePWAInstall } from './hooks/usePWAInstall';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
 
 const STORAGE_KEY = 'gasCounters_data_v1';
 const DARK_MODE_KEY = 'gasCounters_darkMode';
 const TRANSFER_MODE_KEY = 'gasCounters_transferMode';
+const SORT_OPTION_KEY = 'gasCounters_sortOption';
 
 const INITIAL_DEFAULT_COUNTERS: GasCounter[] = [
   {
@@ -134,10 +145,28 @@ export default function App() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
   const [counterToRemove, setCounterToRemove] = useState<GasCounter | null>(null);
   const [counterToReset, setCounterToReset] = useState<GasCounter | null>(null);
   const [resetModalOpen, setResetModalOpen] = useState(false);
   const [resetAction, setResetAction] = useState<'zero' | 'deleteAll'>('zero');
+
+  // Smart Sorting state
+  const [sortOption, setSortOption] = useState<SortOptionType>(() => {
+    try {
+      const saved = localStorage.getItem(SORT_OPTION_KEY);
+      if (saved) return saved as SortOptionType;
+    } catch {}
+    return 'default';
+  });
+
+  const handleSortChange = useCallback((newSort: SortOptionType) => {
+    triggerHaptic('light');
+    setSortOption(newSort);
+    try {
+      localStorage.setItem(SORT_OPTION_KEY, newSort);
+    } catch {}
+  }, []);
 
   // Transfer mode (1 Cheio -> 1 Vazio) state
   const [transferModeEnabled, setTransferModeEnabled] = useState<boolean>(() => {
@@ -150,6 +179,7 @@ export default function App() {
   });
 
   const handleToggleTransferMode = useCallback((enabled: boolean) => {
+    triggerHaptic('medium');
     setTransferModeEnabled(enabled);
     try {
       localStorage.setItem(TRANSFER_MODE_KEY, JSON.stringify(enabled));
@@ -396,6 +426,7 @@ export default function App() {
 
   const handleConfirmRemove = useCallback(() => {
     if (!counterToRemove) return;
+    triggerHaptic('error');
     setCounters(prev => prev.filter(c => c.id !== counterToRemove.id));
     showToast(`"${counterToRemove.label}" removido do inventário.`);
     setCounterToRemove(null);
@@ -404,6 +435,7 @@ export default function App() {
   // Individual reset handler
   const handleConfirmIndividualReset = useCallback(
     (counterId: string | number, resetType: 'both' | 'full' | 'empty') => {
+      triggerHaptic('warning');
       setCounters(prev =>
         prev.map(c => {
           if (c.id === counterId) {
@@ -424,6 +456,7 @@ export default function App() {
 
   // General reset handler
   const handleConfirmReset = useCallback(() => {
+    triggerHaptic('warning');
     if (resetAction === 'zero') {
       setCounters(prev =>
         prev.map(c => ({
@@ -441,6 +474,7 @@ export default function App() {
   }, [resetAction, showToast]);
 
   const handleAddDefaultPresets = useCallback(() => {
+    triggerHaptic('light');
     setCounters(INITIAL_DEFAULT_COUNTERS);
     showToast('Contadores padrão restaurados!');
   }, [showToast]);
@@ -449,9 +483,11 @@ export default function App() {
   const handleSaveSnapshot = useCallback(
     (settings?: Partial<ExportSettings> & { title?: string }) => {
       if (counters.length === 0) {
+        triggerHaptic('warning');
         showToast('Nenhum cilindro cadastrado para salvar.', 'error');
         return;
       }
+      triggerHaptic('success');
       const snap = createSnapshotFromCounters(counters, settings);
       const updated = addSnapshotToHistory(snap);
       setSnapshots(updated);
@@ -462,6 +498,7 @@ export default function App() {
 
   const handleDeleteSnapshot = useCallback(
     (id: string) => {
+      triggerHaptic('warning');
       const updated = deleteSnapshotFromHistory(id);
       setSnapshots(updated);
       showToast('Registro de contagem excluído.');
@@ -470,6 +507,7 @@ export default function App() {
   );
 
   const handleClearAllHistory = useCallback(() => {
+    triggerHaptic('error');
     clearAllHistory();
     setSnapshots([]);
     showToast('Histórico de contagens foi limpo.');
@@ -477,6 +515,7 @@ export default function App() {
 
   const handleRestoreSnapshot = useCallback(
     (snap: CountSnapshot) => {
+      triggerHaptic('success');
       setCounters(prev => {
         const itemMap = new Map(snap.items.map(it => [String(it.label).toLowerCase(), it]));
 
@@ -517,15 +556,67 @@ export default function App() {
     [showToast]
   );
 
+  // Restore Backup handler
+  const handleRestoreBackup = useCallback(
+    (backup: AppBackupData, mode: 'replace' | 'merge') => {
+      if (mode === 'replace') {
+        setCounters(backup.counters);
+        setSnapshots(backup.snapshots);
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(backup.counters));
+          localStorage.setItem('gasCounters_snapshots_v1', JSON.stringify(backup.snapshots));
+
+          if (backup.preferences?.customTemplate) {
+            localStorage.setItem('gasCounters_custom_template', backup.preferences.customTemplate);
+          }
+          if (backup.preferences?.customItemTemplate) {
+            localStorage.setItem('gasCounters_custom_item_template', backup.preferences.customItemTemplate);
+          }
+          if (backup.preferences?.location) {
+            localStorage.setItem('gasCounters_last_location', backup.preferences.location);
+          }
+          if (backup.preferences?.responsible) {
+            localStorage.setItem('gasCounters_last_responsible', backup.preferences.responsible);
+          }
+        } catch {}
+      } else {
+        // Merge mode: atualiza existentes por nome ou adiciona novos
+        setCounters(prev => {
+          const map = new Map(prev.map(c => [c.label.toLowerCase().trim(), c]));
+          for (const item of backup.counters) {
+            const key = item.label.toLowerCase().trim();
+            if (map.has(key)) {
+              map.set(key, { ...map.get(key)!, ...item });
+            } else {
+              map.set(key, item);
+            }
+          }
+          return Array.from(map.values());
+        });
+
+        setSnapshots(prev => {
+          const existingIds = new Set(prev.map(s => s.id));
+          const newOnes = backup.snapshots.filter(s => !existingIds.has(s.id));
+          return [...prev, ...newOnes];
+        });
+      }
+    },
+    []
+  );
+
   // Derived Metrics
   const metrics: InventoryMetrics = useMemo(() => {
     let totalFull = 0;
     let totalEmpty = 0;
     let lowStockCount = 0;
+    let favoritesCount = 0;
 
     for (const c of counters) {
       totalFull += c.full;
       totalEmpty += c.empty;
+      if (c.isFavorite) {
+        favoritesCount += 1;
+      }
       if (typeof c.minStock === 'number' && c.minStock > 0 && c.full <= c.minStock) {
         lowStockCount += 1;
       }
@@ -537,10 +628,11 @@ export default function App() {
       totalCylinders: totalFull + totalEmpty,
       distinctTypes: counters.length,
       lowStockCount,
+      favoritesCount,
     };
   }, [counters]);
 
-  // Filtered counters for display
+  // Filtered and Sorted counters for display
   const displayedCounters = useMemo(() => {
     let list = counters;
 
@@ -555,8 +647,48 @@ export default function App() {
       list = list.filter(c => typeof c.minStock === 'number' && c.minStock > 0 && c.full <= c.minStock);
     }
 
-    return list;
-  }, [counters, searchQuery, activeFilter]);
+    // Ordenação Inteligente
+    const sorted = [...list];
+    switch (sortOption) {
+      case 'name-asc':
+        sorted.sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
+        break;
+      case 'name-desc':
+        sorted.sort((a, b) => b.label.localeCompare(a.label, 'pt-BR'));
+        break;
+      case 'critical':
+        sorted.sort((a, b) => {
+          const minA = a.minStock ?? 2;
+          const minB = b.minStock ?? 2;
+          const isLowA = a.full <= minA;
+          const isLowB = b.full <= minB;
+          if (isLowA && !isLowB) return -1;
+          if (!isLowA && isLowB) return 1;
+          if (a.full === 0 && b.full > 0) return -1;
+          if (a.full > 0 && b.full === 0) return 1;
+          return a.full - b.full;
+        });
+        break;
+      case 'full-desc':
+        sorted.sort((a, b) => b.full - a.full);
+        break;
+      case 'empty-desc':
+        sorted.sort((a, b) => b.empty - a.empty);
+        break;
+      case 'total-desc':
+        sorted.sort((a, b) => (b.full + b.empty) - (a.full + a.empty));
+        break;
+      case 'default':
+      default:
+        sorted.sort((a, b) => {
+          if (a.isFavorite === b.isFavorite) return 0;
+          return a.isFavorite ? -1 : 1;
+        });
+        break;
+    }
+
+    return sorted;
+  }, [counters, searchQuery, activeFilter, sortOption]);
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors">
@@ -568,6 +700,7 @@ export default function App() {
         onOpenExportModal={() => setIsExportModalOpen(true)}
         onOpenResetModal={() => setResetModalOpen(true)}
         onOpenHistoryModal={() => setIsHistoryModalOpen(true)}
+        onOpenBackupModal={() => setIsBackupModalOpen(true)}
         historyCount={snapshots.length}
         hasCounters={counters.length > 0}
         isInstallable={isInstallable}
@@ -592,6 +725,8 @@ export default function App() {
           onSearchChange={setSearchQuery}
           transferModeEnabled={transferModeEnabled}
           onToggleTransferMode={handleToggleTransferMode}
+          sortOption={sortOption}
+          onSortChange={handleSortChange}
         />
 
         {/* Counters Grid / List */}
@@ -672,7 +807,10 @@ export default function App() {
       {/* Floating Action Button on Mobile when scroll */}
       <div className="fixed bottom-5 right-5 sm:hidden z-20 flex flex-col gap-2">
         <button
-          onClick={() => setIsHistoryModalOpen(true)}
+          onClick={() => {
+            triggerHaptic('light');
+            setIsHistoryModalOpen(true);
+          }}
           className="w-11 h-11 rounded-full bg-slate-800 text-slate-200 border border-slate-700 shadow-lg flex items-center justify-center active:scale-95 transition-transform"
           aria-label="Ver histórico"
           title="Histórico de contagens"
@@ -681,7 +819,10 @@ export default function App() {
         </button>
 
         <button
-          onClick={() => setIsAddModalOpen(true)}
+          onClick={() => {
+            triggerHaptic('light');
+            setIsAddModalOpen(true);
+          }}
           className="w-14 h-14 rounded-full bg-sky-600 text-white shadow-xl flex items-center justify-center active:scale-95 transition-transform"
           aria-label="Adicionar gás"
         >
@@ -713,6 +854,16 @@ export default function App() {
         onDeleteSnapshot={handleDeleteSnapshot}
         onClearAllHistory={handleClearAllHistory}
         onRestoreSnapshot={handleRestoreSnapshot}
+        onShowToast={showToast}
+      />
+
+      {/* Modal de Backup e Restauração em JSON */}
+      <BackupModal
+        isOpen={isBackupModalOpen}
+        onClose={() => setIsBackupModalOpen(false)}
+        counters={counters}
+        snapshots={snapshots}
+        onRestoreBackup={handleRestoreBackup}
         onShowToast={showToast}
       />
 
@@ -807,7 +958,10 @@ export default function App() {
             <div className="flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800 pt-3">
               <button
                 type="button"
-                onClick={() => setResetModalOpen(false)}
+                onClick={() => {
+                  triggerHaptic('light');
+                  setResetModalOpen(false);
+                }}
                 className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
               >
                 Cancelar

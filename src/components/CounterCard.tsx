@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { GasCounter } from '../types/gas';
 import { copyTextToClipboard, formatSingleGasSummary } from '../utils/exportFormatters';
+import { triggerHaptic } from '../utils/haptics';
 import {
   Star,
   Trash2,
@@ -60,6 +61,7 @@ export const CounterCard: React.FC<CounterCardProps> = ({
   const handleSaveEdit = (type: 'full' | 'empty') => {
     const rawNum = Math.max(0, parseInt(tempValue, 10) || 0);
     const num = transferModeEnabled ? Math.min(rawNum, total) : rawNum;
+    triggerHaptic('medium');
     onSetDirect(counter.id, type, num);
     setEditingField(null);
   };
@@ -68,6 +70,7 @@ export const CounterCard: React.FC<CounterCardProps> = ({
     const text = formatSingleGasSummary(counter);
     const ok = await copyTextToClipboard(text);
     if (ok) {
+      triggerHaptic('success');
       setCopied(true);
       if (onShowToast) {
         onShowToast(`Copiado: ${counter.label} (${counter.full} CH / ${counter.empty} VZ)`, 'success');
@@ -196,7 +199,10 @@ export const CounterCard: React.FC<CounterCardProps> = ({
 
           {/* Botão de Reset Individual */}
           <button
-            onClick={() => onRequestReset(counter)}
+            onClick={() => {
+              triggerHaptic('warning');
+              onRequestReset(counter);
+            }}
             className="p-2 text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-lg transition-colors"
             title="Zerar cheios/vazios deste gás (Início de Turno)"
             aria-label="Zerar este contador"
@@ -205,7 +211,10 @@ export const CounterCard: React.FC<CounterCardProps> = ({
           </button>
 
           <button
-            onClick={() => onToggleFavorite(counter.id)}
+            onClick={() => {
+              triggerHaptic('medium');
+              onToggleFavorite(counter.id);
+            }}
             className={`p-2 rounded-lg transition-colors ${
               counter.isFavorite
                 ? 'text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40'
@@ -218,7 +227,10 @@ export const CounterCard: React.FC<CounterCardProps> = ({
           </button>
 
           <button
-            onClick={() => onToggleExpand(counter.id)}
+            onClick={() => {
+              triggerHaptic('light');
+              onToggleExpand(counter.id);
+            }}
             className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
             title={counter.expanded ? 'Recolher detalhes' : 'Expandir notas, estoque mínimo e opções'}
             aria-label="Expandir ou recolher"
@@ -248,7 +260,10 @@ export const CounterCard: React.FC<CounterCardProps> = ({
           <div className="flex items-center justify-between gap-2">
             <button
               id={`dec-full-${counter.id}`}
-              onClick={() => onDecrement(counter.id, 'full')}
+              onClick={() => {
+                triggerHaptic('light');
+                onDecrement(counter.id, 'full');
+              }}
               disabled={counter.full === 0}
               className="w-13 h-13 sm:w-14 sm:h-14 rounded-xl bg-white dark:bg-slate-800 text-rose-600 dark:text-rose-400 border border-emerald-200 dark:border-emerald-800/60 shadow-xs flex items-center justify-center hover:bg-rose-50 dark:hover:bg-rose-950/30 active:scale-95 disabled:opacity-30 disabled:pointer-events-none transition-all touch-manipulation text-xl font-black"
               aria-label="Diminuir cheios"
@@ -297,7 +312,10 @@ export const CounterCard: React.FC<CounterCardProps> = ({
 
             <button
               id={`inc-full-${counter.id}`}
-              onClick={() => onIncrement(counter.id, 'full')}
+              onClick={() => {
+                triggerHaptic('light');
+                onIncrement(counter.id, 'full');
+              }}
               disabled={transferModeEnabled && counter.empty === 0}
               className="w-13 h-13 sm:w-14 sm:h-14 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-30 disabled:pointer-events-none text-white shadow-sm flex items-center justify-center active:scale-95 transition-all touch-manipulation text-xl font-black"
               aria-label="Aumentar cheios"
@@ -328,7 +346,10 @@ export const CounterCard: React.FC<CounterCardProps> = ({
           <div className="flex items-center justify-between gap-2">
             <button
               id={`dec-empty-${counter.id}`}
-              onClick={() => onDecrement(counter.id, 'empty')}
+              onClick={() => {
+                triggerHaptic('light');
+                onDecrement(counter.id, 'empty');
+              }}
               disabled={counter.empty === 0}
               className="w-13 h-13 sm:w-14 sm:h-14 rounded-xl bg-white dark:bg-slate-800 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 shadow-xs flex items-center justify-center hover:bg-rose-50 dark:hover:bg-rose-950/30 active:scale-95 disabled:opacity-30 disabled:pointer-events-none transition-all touch-manipulation text-xl font-black"
               aria-label="Diminuir vazios"
@@ -377,7 +398,10 @@ export const CounterCard: React.FC<CounterCardProps> = ({
 
             <button
               id={`inc-empty-${counter.id}`}
-              onClick={() => onIncrement(counter.id, 'empty')}
+              onClick={() => {
+                triggerHaptic('light');
+                onIncrement(counter.id, 'empty');
+              }}
               disabled={transferModeEnabled && counter.full === 0}
               className="w-13 h-13 sm:w-14 sm:h-14 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 disabled:opacity-30 disabled:pointer-events-none text-white shadow-sm flex items-center justify-center active:scale-95 transition-all touch-manipulation text-xl font-black"
               aria-label="Aumentar vazios"

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { GasCounter } from '../types/gas';
 import { RotateCcw, X, AlertTriangle } from 'lucide-react';
+import { triggerHaptic } from '../utils/haptics';
 
 interface ResetIndividualModalProps {
   counter: GasCounter | null;
@@ -22,6 +23,7 @@ export const ResetIndividualModal: React.FC<ResetIndividualModalProps> = ({
   const total = counter.full + counter.empty;
 
   const handleConfirm = () => {
+    triggerHaptic('warning');
     onConfirmReset(counter.id, resetType);
     onClose();
   };

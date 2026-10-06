@@ -1,4 +1,5 @@
 import React from 'react';
+import { triggerHaptic } from '../utils/haptics';
 import {
   Cylinder,
   Moon,
@@ -12,6 +13,7 @@ import {
   WifiOff,
   Cloud,
   Check,
+  HardDrive,
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -21,6 +23,7 @@ interface HeaderProps {
   onOpenExportModal: () => void;
   onOpenResetModal: () => void;
   onOpenHistoryModal: () => void;
+  onOpenBackupModal: () => void;
   historyCount: number;
   hasCounters: boolean;
   isInstallable?: boolean;
@@ -36,6 +39,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenExportModal,
   onOpenResetModal,
   onOpenHistoryModal,
+  onOpenBackupModal,
   historyCount,
   hasCounters,
   isInstallable = false,
@@ -125,7 +129,10 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               id="mobile-dark-mode-toggle"
               type="button"
-              onClick={onToggleDarkMode}
+              onClick={() => {
+                triggerHaptic('light');
+                onToggleDarkMode();
+              }}
               className="p-2 rounded-lg text-slate-600 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 active:scale-95 transition-all"
               aria-label="Alternar tema escuro/claro"
               title={darkMode ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
@@ -150,12 +157,30 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
+          {/* Backup Button */}
+          <button
+            id="header-backup-btn"
+            type="button"
+            onClick={() => {
+              triggerHaptic('light');
+              onOpenBackupModal();
+            }}
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-2 text-xs sm:text-sm font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            title="Fazer backup ou restaurar dados em arquivo JSON"
+          >
+            <HardDrive className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+            <span>Backup</span>
+          </button>
+
           {/* Histórico Button */}
           <button
             id="header-history-btn"
             type="button"
-            onClick={onOpenHistoryModal}
-            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            onClick={() => {
+              triggerHaptic('light');
+              onOpenHistoryModal();
+            }}
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-2 text-xs sm:text-sm font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
             title="Ver histórico de contagens anteriores"
           >
             <History className="w-4 h-4 text-sky-600 dark:text-sky-400" />
@@ -172,7 +197,10 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 id="header-export-btn"
                 type="button"
-                onClick={onOpenExportModal}
+                onClick={() => {
+                  triggerHaptic('light');
+                  onOpenExportModal();
+                }}
                 className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-semibold rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition-colors shadow-xs"
                 title="Exportar contagem para WhatsApp"
               >
@@ -183,7 +211,10 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 id="header-reset-btn"
                 type="button"
-                onClick={onOpenResetModal}
+                onClick={() => {
+                  triggerHaptic('warning');
+                  onOpenResetModal();
+                }}
                 className="p-2 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors"
                 title="Zerar ou resetar todo o inventário"
                 aria-label="Resetar inventário"
@@ -196,8 +227,11 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             id="header-add-counter-btn"
             type="button"
-            onClick={onOpenAddModal}
-            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg bg-sky-600 hover:bg-sky-700 text-white shadow-sm transition-all focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
+            onClick={() => {
+              triggerHaptic('light');
+              onOpenAddModal();
+            }}
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg bg-sky-600 hover:bg-sky-700 text-white shadow-sm transition-all focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 active:scale-98"
           >
             <Plus className="w-4 h-4" />
             <span>Novo Gás</span>
@@ -207,7 +241,10 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             id="desktop-dark-mode-toggle"
             type="button"
-            onClick={onToggleDarkMode}
+            onClick={() => {
+              triggerHaptic('light');
+              onToggleDarkMode();
+            }}
             className="hidden sm:inline-flex p-2 rounded-lg text-slate-600 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 active:scale-95 transition-all"
             aria-label="Alternar tema"
             title={darkMode ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
