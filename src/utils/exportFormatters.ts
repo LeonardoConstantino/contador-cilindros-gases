@@ -286,10 +286,203 @@ export function formatSimpleTextList(
   return `${headerText}${lines.join('\n')}`;
 }
 
+export const DEFAULT_CUSTOM_ITEM_TEMPLATE = '• {nome}: {cheios} CH / {vazios} VZ (Tot: {total}){alerta}{obs}';
+
+export const DEFAULT_CUSTOM_TEMPLATE = `📋 *RELATÓRIO DE GASES - {local}*
+👤 *Responsável:* {responsavel} | ⏱️ *Turno:* {turno}
+📅 *Data:* {data} às {hora}
+
+📦 *Estoque Atual:*
+{itens}
+
+📊 *Totais:*
+Cheios: {total_cheios} | Vazios: {total_vazios}
+Total Geral de Cilindros: {total_geral}
+{alertas}`;
+
+export interface CustomTemplatePreset {
+  id: string;
+  name: string;
+  description: string;
+  template: string;
+  itemTemplate?: string;
+}
+
+export const CUSTOM_TEMPLATE_PRESETS: CustomTemplatePreset[] = [
+  {
+    id: 'default',
+    name: 'Padrão {itens}',
+    description: 'Cabeçalho organizado e lista de itens formatada',
+    template: DEFAULT_CUSTOM_TEMPLATE,
+    itemTemplate: DEFAULT_CUSTOM_ITEM_TEMPLATE,
+  },
+  {
+    id: 'block_item',
+    name: 'Bloco [item] Detalhado',
+    description: 'Utiliza bloco [item]...[/item] com linha totalmente personalizável',
+    template: `📋 *CONTAGEM DE CILINDROS - {local}*
+📅 {data} às {hora} | 👤 {responsavel} ({turno})
+
+📦 *ESTOQUE DETALHADO:*
+[item]
+🔹 *{nome}*: {cheios} Cheios | {vazios} Vazios (Total: {total}){alerta}{obs}
+[/item]
+
+📊 *RESUMO GERAL:*
+✅ Cheios: {total_cheios}
+⭕ Vazios: {total_vazios}
+🔢 Total: {total_geral} de cilindros
+{alertas}`,
+    itemTemplate: DEFAULT_CUSTOM_ITEM_TEMPLATE,
+  },
+  {
+    id: 'hospital',
+    name: 'Passagem de Plantão / Hospitalar',
+    description: 'Formato voltado para enfermagem e engenharia clínica',
+    template: `🏥 *BOLETIM DE GASES MEDICINAIS - {local}*
+👨‍⚕️ *Responsável:* {responsavel} | ⏰ *Turno:* {turno}
+📆 *Data/Hora:* {data} às {hora}
+
+🚨 *STATUS DE ESTOQUE:*
+{alertas}
+
+📋 *CONTAGEM POR CILINDRO:*
+[item]
+• *{nome}*: {cheios} cheios / {vazios} vazios | Mín: {minimo} [{status}]{obs}
+[/item]
+
+📈 *CONSOLIDADO DO SETOR:*
+🟢 Total Cheios (Prontos): {total_cheios}
+🔴 Total Vazios (Recolha): {total_vazios}
+📦 Volume Total no Setor: {total_geral}`,
+    itemTemplate: '• *{nome}*: {cheios} cheios / {vazios} vazios | Mín: {minimo} [{status}]{obs}',
+  },
+  {
+    id: 'compact',
+    name: 'Compacto / Mensagem Rápida',
+    description: 'Poucas linhas ideal para SMS, rádio ou Telegram',
+    template: `[GASES] {local} ({data} {hora})
+Resp: {responsavel} | Turno: {turno}
+Itens:
+[item]
+- {nome}: {cheios}CH/{vazios}VZ{alerta}
+[/item]
+Totais: {total_cheios} CH | {total_vazios} VZ | Geral: {total_geral}
+{alertas}`,
+    itemTemplate: '- {nome}: {cheios}CH/{vazios}VZ{alerta}',
+  },
+  {
+    id: 'table_markdown',
+    name: 'Tabela Markdown / Discord',
+    description: 'Tabela em formato markdown monospaçado',
+    template: `### 📋 Inventário de Cilindros - {local}
+**Responsável:** {responsavel} | **Data:** {data} {hora}
+
+| Gás / Item | Cheios | Vazios | Total | Status |
+| :--- | :---: | :---: | :---: | :--- |
+[item]
+| {nome} | {cheios} | {vazios} | {total} | {status} |
+[/item]
+| **TOTAL GERAL** | **{total_cheios}** | **{total_vazios}** | **{total_geral}** | - |
+
+{alertas}`,
+    itemTemplate: '| {nome} | {cheios} | {vazios} | {total} | {status} |',
+  },
+];
+
+export function formatSingleItemWithTemplate(
+  c: GasCounter,
+  itemTpl: string,
+  settings: ExportSettings
+): string {
+  const tot = c.full + c.empty;
+  const isLow = Boolean(settings.indicateLowStock && isCounterLowStock(c));
+  const min = typeof c.minStock === 'number' ? c.minStock : 2;
+  const statusStr = isLow ? (c.full === 0 ? 'ZERADO' : 'BAIXO') : 'OK';
+  const alertStr = isLow ? (c.full === 0 ? ' 🚨 [ZERADO!]' : ' ⚠️ [BAIXO]') : '';
+  const notesStr = (settings.includeNotes && c.notes?.trim()) ? ` [Obs: ${c.notes.trim()}]` : '';
+
+  return itemTpl
+    .replace(/\{item_nome\}|\{nome\}|\{gas\}|\{item\}|\{rotulo\}/gi, c.label)
+    .replace(/\{item_cheios\}|\{cheios\}|\{ch\}|\{cheio\}/gi, String(c.full))
+    .replace(/\{item_vazios\}|\{vazios\}|\{vz\}|\{vazio\}/gi, String(c.empty))
+    .replace(/\{item_total\}|\{total\}|\{tot\}|\{total_cilindro\}|\{soma\}/gi, String(tot))
+    .replace(/\{item_minimo\}|\{minimo\}|\{min\}|\{estoque_minimo\}/gi, String(min))
+    .replace(/\{item_status\}|\{status\}/gi, statusStr)
+    .replace(/\{item_alerta\}|\{alerta\}|\{aviso\}/gi, alertStr)
+    .replace(/\{item_obs\}|\{obs\}|\{observacao\}|\{observacoes\}|\{nota\}/gi, notesStr)
+    .replace(/\{item_categoria\}|\{categoria\}/gi, c.category || '')
+    .replace(/\{item_favorito\}|\{favorito\}/gi, c.isFavorite ? '⭐' : '');
+}
+
+export function generateLlmPrompt(desiredStyle?: string): string {
+  const styleInstruction = desiredStyle?.trim()
+    ? `\nESTILO / REQUISITO DO USUÁRIO:\n"${desiredStyle.trim()}"\n`
+    : `\nESTILO DESEJADO:\n[Exemplo: Crie um layout visualmente atraente para WhatsApp com emojis hospitalares organizados, cabeçalho e totais destacados]\n`;
+
+  return `Você é um assistente especialista em criação de modelos de texto e relatórios operacionais.
+Preciso que você crie um MODELO DE LAYOUT PERSONALIZADO (template) para exportação de contagem de cilindros de gases em um aplicativo.
+
+O sistema possui suporte a variáveis dinâmicas que são substituídas automaticamente na hora da exportação.
+
+=== VARIÁVEIS GLOBAIS DISPONÍVEIS ===
+• {local} : Local ou setor da contagem (ex: Almoxarifado Central, UTI)
+• {responsavel} : Nome do responsável pela contagem
+• {turno} : Turno de trabalho (ex: 1º Turno, Plantão Noturno)
+• {data} : Data atual formatada (dd/mm/aaaa)
+• {hora} : Horário da contagem (hh:mm)
+• {total_cheios} : Quantidade total somada de cilindros cheios
+• {total_vazios} : Quantidade total somada de cilindros vazios
+• {total_geral} : Soma total geral de cilindros
+• {total_tipos} : Total de tipos de gases registrados
+• {total_baixo} : Total de itens com estoque baixo/crítico
+• {estoque_baixo} : Lista resumida apenas dos itens abaixo do estoque mínimo
+• {alertas} : Bloco com aviso destacado de itens zerados ou baixos
+• {itens} : Bloco com a listagem de todos os cilindros formatados
+
+=== VARIÁVEIS DE CADA LINHA / CILINDRO INDIVIDUAL ===
+Você pode formatar cada cilindro dentro de um bloco [item] ... [/item] no template.
+O bloco [item]...[/item] será repetido automaticamente para cada cilindro do estoque:
+• {item_nome} ou {nome} : Nome do gás (ex: Oxigênio Medicinal, Argônio)
+• {item_cheios} ou {cheios} : Quantidade de cheios
+• {item_vazios} ou {vazios} : Quantidade de vazios
+• {item_total} ou {total} : Soma cheios + vazios
+• {item_minimo} ou {minimo} : Estoque mínimo de segurança
+• {item_status} ou {status} : Situação ('OK', 'BAIXO' ou 'ZERADO')
+• {item_alerta} ou {alerta} : Alerta visual (ex: ' ⚠️ [BAIXO]' ou ' 🚨 [ZERADO!]')
+• {item_obs} ou {obs} : Observações anotadas no cilindro (se houver)
+• {item_categoria} ou {categoria} : Categoria (Medicinal, Industrial, etc.)
+• {item_favorito} ou {favorito} : Estrela ⭐ se for marcado como favorito
+
+=== EXEMPLO DE ESTRUTURA VÁLIDA: ===
+📋 *CONTROLE DE CILINDROS - {local}*
+👤 Resp: {responsavel} | ⏰ Turno: {turno}
+📅 Data: {data} {hora}
+
+📦 *CILINDROS:*
+[item]
+• *{nome}*: {cheios} Cheios | {vazios} Vazios (Total: {total}){alerta}{obs}
+[/item]
+
+📊 *TOTAIS:*
+✅ Cheios: {total_cheios} | ⭕ Vazios: {total_vazios} | 🔢 Geral: {total_geral}
+
+{alertas}
+
+---
+${styleInstruction}
+DIRETRIZES:
+1. Use as tags exatamente como listadas acima (entre chaves, ex: {local}, {nome}, {cheios}).
+2. Você pode usar formatação do WhatsApp (*negrito*, _itálico_, ~tachado~, \`monospaçado\`) e emojis.
+3. Se quiser listar os cilindros linha por linha com formatação própria, coloque a estrutura da linha dentro de [item] e [/item]. Caso prefira usar a formatação padrão, apenas insira a tag {itens}.
+4. Retorne APENAS o texto do template final, sem introdução, sem explicações em torno e sem cercar com blocos extras desnecessários, para que o usuário possa copiar e colar direto no aplicativo.`;
+}
+
 export function formatCustomTemplate(
   counters: GasCounter[],
   settings: ExportSettings,
-  templateString: string
+  templateString: string,
+  itemTemplateString?: string
 ): string {
   const filtered = counters.filter(c => {
     if (settings.includeEmptyRows) return true;
@@ -309,17 +502,74 @@ export function formatCustomTemplate(
     ? lowItems.map(c => `• ${c.label}: ${c.full} cheios (mín: ${c.minStock ?? 2})`).join('\n')
     : 'Nenhum item com estoque baixo';
 
-  // Generate list items based on line template {item} or line-by-line
-  const itemsText = filtered
-    .map(c => {
-      const tot = c.full + c.empty;
-      const isLow = Boolean(settings.indicateLowStock && isCounterLowStock(c));
-      const lowTag = isLow ? (c.full === 0 ? ' 🚨 [ZERADO]' : ' ⚠️ [BAIXO]') : '';
-      return `${c.label}${lowTag}: ${c.full} CH / ${c.empty} VZ (Tot: ${tot})${c.notes?.trim() ? ` - ${c.notes.trim()}` : ''}`;
-    })
-    .join('\n');
+  const alertBlock = lowItems.length > 0
+    ? `⚠️ *Atenção: ${lowItems.length} item(ns) com estoque baixo!*\n${lowStockSummary}`
+    : '';
 
-  return templateString
+  let processedTemplate = templateString || DEFAULT_CUSTOM_TEMPLATE;
+
+  // Process repeat block [item]...[/item] or [itens]...[/itens] or {{#itens}}...{{/itens}} or {cada_item}...{/cada_item}
+  // Suporta espaços internos em qualquer lugar dos colchetes/chaves: [item ], [ item ], [/ item], etc.
+  const blockRegexes = [
+    /\[\s*(?:item|itens)\s*\]([\s\S]*?)\[\s*\/\s*(?:item|itens)\s*\]/gi,
+    /\{\{\s*#?\s*(?:item|itens)\s*\}\}([\s\S]*?)\{\{\s*\/\s*(?:item|itens)\s*\}\}/gi,
+    /\{\s*cada_item\s*\}([\s\S]*?)\{\s*\/\s*cada_item\s*\}/gi,
+    /\{\s*(?:item|itens)\s*\}([\s\S]*?)\{\s*\/\s*(?:item|itens)\s*\}/gi,
+  ];
+
+  const emptyMsg = '_Nenhum cilindro com quantidade registrado no momento._';
+
+  for (const regex of blockRegexes) {
+    processedTemplate = processedTemplate.replace(regex, (_, innerPattern: string) => {
+      if (filtered.length === 0) {
+        return emptyMsg;
+      }
+      // Remove apenas quebra de linha inicial/final do bloco, mantendo indentação interna
+      const cleanPattern = innerPattern.replace(/^\r?\n/, '').replace(/\r?\n$/, '');
+      return filtered
+        .map(c => formatSingleItemWithTemplate(c, cleanPattern, settings))
+        .join('\n');
+    });
+  }
+
+  // Fallback inteligente: se o usuário não usou [item] nem {itens}, mas colocou tags de linha como {nome} ou {cheios}
+  // expande automaticamente a linha para cada cilindro do estoque
+  const hasItemVarsRegex = /\{(?:item_)?(?:nome|gas|rotulo|cheios?|vazios?|minimo?|status|alerta|categoria|favorito)\}/i;
+  if (!/\[\s*(?:item|itens)\s*\]/i.test(templateString) && hasItemVarsRegex.test(processedTemplate)) {
+    const lines = processedTemplate.split('\n');
+    const newLines: string[] = [];
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (hasItemVarsRegex.test(line)) {
+        if (filtered.length === 0) {
+          newLines.push(emptyMsg);
+        } else {
+          filtered.forEach(c => {
+            newLines.push(formatSingleItemWithTemplate(c, line, settings));
+          });
+        }
+      } else {
+        newLines.push(line);
+      }
+    }
+    processedTemplate = newLines.join('\n');
+  }
+
+  // Limpeza de segurança: remove qualquer tag residual de bloco que tenha sobrado
+  processedTemplate = processedTemplate
+    .replace(/\[\s*\/?\s*(?:item|itens)\s*\]\r?\n?/gi, '')
+    .replace(/\{\{\s*\/?\s*#?\s*(?:item|itens)\s*\}\}\r?\n?/gi, '')
+    .replace(/\{\s*\/?\s*cada_item\s*\}\r?\n?/gi, '');
+
+  // Generate list items based on itemTemplateString if {itens} is present
+  const effectiveItemTemplate = itemTemplateString?.trim() || DEFAULT_CUSTOM_ITEM_TEMPLATE;
+  const itemsText = filtered.length > 0
+    ? filtered
+        .map(c => formatSingleItemWithTemplate(c, effectiveItemTemplate, settings))
+        .join('\n')
+    : emptyMsg;
+
+  return processedTemplate
     .replace(/\{local\}/gi, settings.location || 'Geral')
     .replace(/\{responsavel\}/gi, settings.responsible || 'Operador')
     .replace(/\{turno\}/gi, settings.shift || '-')
@@ -328,9 +578,11 @@ export function formatCustomTemplate(
     .replace(/\{total_cheios\}/gi, String(totalFull))
     .replace(/\{total_vazios\}/gi, String(totalEmpty))
     .replace(/\{total_geral\}/gi, String(grandTotal))
+    .replace(/\{total_tipos\}/gi, String(filtered.length))
+    .replace(/\{total_baixo\}/gi, String(lowItems.length))
     .replace(/\{itens\}/gi, itemsText)
     .replace(/\{estoque_baixo\}/gi, lowStockSummary)
-    .replace(/\{alertas\}/gi, lowItems.length > 0 ? `⚠️ Atenção: ${lowItems.length} item(ns) com estoque baixo!\n${lowStockSummary}` : '');
+    .replace(/\{alertas\}/gi, alertBlock);
 }
 
 export function formatCSV(counters: GasCounter[], location: string, settings?: ExportSettings): string {

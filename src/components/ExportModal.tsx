@@ -5,9 +5,14 @@ import {
   formatAsciiBorderedTable,
   formatSimpleTextList,
   formatCustomTemplate,
+  formatSingleItemWithTemplate,
   formatCSV,
   copyTextToClipboard,
   ExportFormatType,
+  DEFAULT_CUSTOM_TEMPLATE,
+  DEFAULT_CUSTOM_ITEM_TEMPLATE,
+  CUSTOM_TEMPLATE_PRESETS,
+  generateLlmPrompt,
 } from '../utils/exportFormatters';
 import {
   generateInventoryCanvas,
@@ -29,6 +34,12 @@ import {
   Sliders,
   Sparkles,
   Image as ImageIcon,
+  Bot,
+  Layers,
+  ChevronDown,
+  ChevronUp,
+  HelpCircle,
+  Wand2,
 } from 'lucide-react';
 
 interface ExportModalProps {
@@ -38,17 +49,6 @@ interface ExportModalProps {
   onShowToast: (message: string, type?: 'success' | 'error' | 'info') => void;
   onSaveSnapshot?: (settings: ExportSettings) => void;
 }
-
-const DEFAULT_CUSTOM_TEMPLATE = `📋 RELATÓRIO DE GASES - {local}
-Responsável: {responsavel} | Turno: {turno}
-Data: {data} {hora}
-
-Estoque Atual:
-{itens}
-
-Totais:
-Cheios: {total_cheios} | Vazios: {total_vazios}
-Total Geral de Cilindros: {total_geral}`;
 
 export const ExportModal: React.FC<ExportModalProps> = ({
   isOpen,
@@ -73,6 +73,20 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   const [customTemplate, setCustomTemplate] = useState<string>(() => {
     return localStorage.getItem('gasCounters_custom_template') || DEFAULT_CUSTOM_TEMPLATE;
   });
+  const [customItemTemplate, setCustomItemTemplate] = useState<string>(() => {
+    return localStorage.getItem('gasCounters_custom_item_template') || DEFAULT_CUSTOM_ITEM_TEMPLATE;
+  });
+  const [showItemConfig, setShowItemConfig] = useState(false);
+  const [showPromptModal, setShowPromptModal] = useState(false);
+  const [promptStyle, setPromptStyle] = useState('WhatsApp com Emojis');
+  const [customPromptNote, setCustomPromptNote] = useState('');
+  const [llmPromptCopied, setLlmPromptCopied] = useState(false);
+  const [modalPromptCopied, setModalPromptCopied] = useState(false);
+  const [lastFocusedField, setLastFocusedField] = useState<'main' | 'item'>('main');
+
+  const mainTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const itemInputRef = useRef<HTMLInputElement | null>(null);
+
   const [editablePreview, setEditablePreview] = useState<string>('');
   const [isManualEditing, setIsManualEditing] = useState<boolean>(false);
 
@@ -91,12 +105,12 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       case 'simple':
         return formatSimpleTextList(counters, settings);
       case 'custom':
-        return formatCustomTemplate(counters, settings, customTemplate);
+        return formatCustomTemplate(counters, settings, customTemplate, customItemTemplate);
       case 'whatsapp':
       default:
         return formatWhatsAppTable(counters, settings);
     }
-  }, [selectedFormat, counters, settings, customTemplate]);
+  }, [selectedFormat, counters, settings, customTemplate, customItemTemplate]);
 
   // Atualiza o canvas e o preview da imagem quando estiver no modo 'image' ou configurações mudarem
   useEffect(() => {
@@ -145,6 +159,79 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   const handleCustomTemplateChange = (val: string) => {
     setCustomTemplate(val);
     localStorage.setItem('gasCounters_custom_template', val);
+  };
+
+  const handleCustomItemTemplateChange = (val: string) => {
+    setCustomItemTemplate(val);
+    localStorage.setItem('gasCounters_custom_item_template', val);
+  };
+
+  const handleSelectPreset = (presetId: string) => {
+    const preset = CUSTOM_TEMPLATE_PRESETS.find(p => p.id === presetId);
+    if (preset) {
+      handleCustomTemplateChange(preset.template);
+      if (preset.itemTemplate) {
+        handleCustomItemTemplateChange(preset.itemTemplate);
+      }
+      onShowToast(`Modelo "${preset.name}" aplicado!`, 'info');
+    }
+  };
+
+  const handleInsertTag = (tag: string, target?: 'main' | 'item') => {
+    const targetField = target || lastFocusedField;
+    if (targetField === 'item' && showItemConfig && itemInputRef.current) {
+      const input = itemInputRef.current;
+      const start = input.selectionStart ?? customItemTemplate.length;
+      const end = input.selectionEnd ?? customItemTemplate.length;
+      const nextVal = customItemTemplate.slice(0, start) + tag + customItemTemplate.slice(end);
+      handleCustomItemTemplateChange(nextVal);
+      setTimeout(() => {
+        input.focus();
+        input.setSelectionRange(start + tag.length, start + tag.length);
+      }, 30);
+    } else {
+      const textarea = mainTextareaRef.current;
+      if (textarea) {
+        const start = textarea.selectionStart ?? customTemplate.length;
+        const end = textarea.selectionEnd ?? customTemplate.length;
+        const nextVal = customTemplate.slice(0, start) + tag + customTemplate.slice(end);
+        handleCustomTemplateChange(nextVal);
+        setTimeout(() => {
+          textarea.focus();
+          textarea.setSelectionRange(start + tag.length, start + tag.length);
+        }, 30);
+      } else {
+        handleCustomTemplateChange(customTemplate + tag);
+      }
+    }
+    onShowToast(`Tag ${tag} inserida!`, 'info');
+  };
+
+  const handleQuickCopyLlmPrompt = async () => {
+    const promptText = generateLlmPrompt();
+    const ok = await copyTextToClipboard(promptText);
+    if (ok) {
+      setLlmPromptCopied(true);
+      onShowToast('Prompt para IA copiado! Cole no ChatGPT, Claude ou Gemini.');
+      setTimeout(() => setLlmPromptCopied(false), 3000);
+    } else {
+      onShowToast('Não foi possível copiar o prompt.', 'error');
+    }
+  };
+
+  const handleCopyModalLlmPrompt = async () => {
+    const fullNote = customPromptNote.trim()
+      ? `${promptStyle} - ${customPromptNote.trim()}`
+      : promptStyle;
+    const promptText = generateLlmPrompt(fullNote);
+    const ok = await copyTextToClipboard(promptText);
+    if (ok) {
+      setModalPromptCopied(true);
+      onShowToast('Prompt personalizado copiado para a área de transferência!');
+      setTimeout(() => setModalPromptCopied(false), 3000);
+    } else {
+      onShowToast('Não foi possível copiar o prompt.', 'error');
+    }
   };
 
   const handleCopy = async () => {
@@ -334,32 +421,249 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
           {/* Editor de Template Personalizado (aparece apenas quando custom está ativo) */}
           {selectedFormat === 'custom' && (
-            <div className="p-3 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800/50 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-purple-900 dark:text-purple-200 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                  Modelo Personalizado:
+            <div className="p-3.5 sm:p-4 rounded-2xl bg-purple-50/70 dark:bg-purple-950/25 border border-purple-200 dark:border-purple-800/60 space-y-3 shadow-xs">
+              {/* Header do Custom */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-purple-100 dark:border-purple-900/40 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-md bg-purple-200 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 flex items-center justify-center">
+                    <Sparkles className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-purple-950 dark:text-purple-200">
+                      Modelo Personalizado de Exportação
+                    </h3>
+                    <p className="text-[11px] text-purple-700/80 dark:text-purple-400">
+                      Personalize cabeçalhos, totais e a linha de cada cilindro
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center flex-wrap gap-1.5 self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={handleQuickCopyLlmPrompt}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-white bg-linear-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 rounded-lg shadow-2xs transition-all active:scale-95"
+                    title="Copiar prompt pronto para colar no ChatGPT, Claude ou Gemini"
+                  >
+                    {llmPromptCopied ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        <span>Prompt Copiado!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Copiar Prompt p/ IA</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowPromptModal(true)}
+                    className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-purple-700 dark:text-purple-300 bg-white dark:bg-purple-900/40 hover:bg-purple-100 dark:hover:bg-purple-900/70 border border-purple-200 dark:border-purple-800 rounded-lg transition-colors"
+                    title="Personalizar prompt com estilos e instruções específicas"
+                  >
+                    <Bot className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                    <span>Ajustar Prompt</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleCustomTemplateChange(DEFAULT_CUSTOM_TEMPLATE);
+                      handleCustomItemTemplateChange(DEFAULT_CUSTOM_ITEM_TEMPLATE);
+                      onShowToast('Modelo padrão restaurado!', 'info');
+                    }}
+                    className="text-[11px] text-purple-600 dark:text-purple-400 hover:text-purple-900 dark:hover:text-purple-200 font-medium px-1.5 py-1 hover:underline"
+                  >
+                    Restaurar padrão
+                  </button>
+                </div>
+              </div>
+
+              {/* Seletor de Presets Prontos */}
+              <div>
+                <span className="block text-[11px] font-semibold text-purple-900 dark:text-purple-300 mb-1.5 flex items-center gap-1">
+                  <Layers className="w-3 h-3 text-purple-600" />
+                  Modelos prontos para aplicar com 1 clique:
                 </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {CUSTOM_TEMPLATE_PRESETS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => handleSelectPreset(preset.id)}
+                      className="px-2.5 py-1 text-[11px] font-medium rounded-lg bg-white dark:bg-slate-800/90 border border-purple-200 dark:border-purple-800/80 text-purple-900 dark:text-purple-200 hover:bg-purple-100 dark:hover:bg-purple-900/50 hover:border-purple-300 transition-colors shadow-2xs"
+                      title={preset.description}
+                    >
+                      {preset.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Editor Principal do Modelo */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] font-bold text-purple-950 dark:text-purple-200">
+                    Estrutura do Relatório (Template Principal):
+                  </label>
+                  <span className="text-[10px] text-purple-700 dark:text-purple-400">
+                    Use <code className="bg-purple-100 dark:bg-purple-900/60 px-1 py-0.2 rounded font-mono">{'{itens}'}</code> ou o bloco <code className="bg-purple-100 dark:bg-purple-900/60 px-1 py-0.2 rounded font-mono">[item]...[/item]</code>
+                  </span>
+                </div>
+                <textarea
+                  ref={mainTextareaRef}
+                  rows={6}
+                  value={customTemplate}
+                  onFocus={() => setLastFocusedField('main')}
+                  onChange={(e) => handleCustomTemplateChange(e.target.value)}
+                  placeholder="Ex: 📋 RELATÓRIO - {local}&#10;Data: {data} {hora}&#10;&#10;[item]&#10;• {nome}: {cheios} cheios, {vazios} vazios {alerta}&#10;[/item]&#10;&#10;Total: {total_geral}"
+                  className="w-full text-xs font-mono p-3 rounded-xl bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-700 text-slate-900 dark:text-purple-100 focus:outline-none focus:ring-2 focus:ring-purple-500 shadow-2xs"
+                />
+              </div>
+
+              {/* Variáveis dos Itens da Linha */}
+              <div className="p-2.5 rounded-xl bg-white/80 dark:bg-slate-900/60 border border-purple-200/80 dark:border-purple-800/50 space-y-2">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[11px] font-bold text-purple-950 dark:text-purple-200 flex items-center gap-1">
+                      <Wand2 className="w-3 h-3 text-purple-600" />
+                      Variáveis de cada item da linha (clique para inserir no modelo):
+                    </span>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                      Use em [item]...[/item] ou no formato de item
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {[
+                      { tag: '{nome}', desc: 'Nome do gás', label: 'Nome' },
+                      { tag: '{cheios}', desc: 'Qtd Cheios', label: 'Cheios' },
+                      { tag: '{vazios}', desc: 'Qtd Vazios', label: 'Vazios' },
+                      { tag: '{total}', desc: 'Total do cilindro', label: 'Total' },
+                      { tag: '{minimo}', desc: 'Estoque Mínimo', label: 'Mínimo' },
+                      { tag: '{status}', desc: 'OK / BAIXO / ZERADO', label: 'Status' },
+                      { tag: '{alerta}', desc: '⚠️ ou 🚨 Alerta de baixo', label: 'Alerta' },
+                      { tag: '{obs}', desc: 'Observações do cilindro', label: 'Obs' },
+                      { tag: '{categoria}', desc: 'Medicinal/Industrial', label: 'Categoria' },
+                      { tag: '{favorito}', desc: 'Estrela ⭐ se favorito', label: 'Favorito' },
+                      { tag: '\n[item]\n• *{nome}*: {cheios} Ch / {vazios} Vz (Tot: {total}){alerta}{obs}\n[/item]\n', desc: 'Inserir bloco de repetição completo', label: '[item]...[/item]', highlight: true },
+                    ].map(({ tag, desc, label, highlight }) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => handleInsertTag(tag)}
+                        title={`${tag} : ${desc} (clique para inserir)`}
+                        className={`px-1.5 py-0.8 text-[11px] rounded font-mono font-semibold transition-colors flex items-center gap-1 ${
+                          highlight
+                            ? 'bg-purple-600 text-white hover:bg-purple-700 shadow-2xs'
+                            : 'bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800 border border-purple-200 dark:border-purple-700/60'
+                        }`}
+                      >
+                        <span>{label}</span>
+                        <code className="text-[9px] opacity-75">{tag.trim().startsWith('[') ? '[bloco]' : tag}</code>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Variáveis Globais */}
+                <div className="pt-1.5 border-t border-purple-100 dark:border-purple-800/40">
+                  <span className="block text-[11px] font-semibold text-purple-900 dark:text-purple-300 mb-1">
+                    Variáveis globais do relatório (cabeçalho e totais):
+                  </span>
+                  <div className="flex flex-wrap gap-1">
+                    {[
+                      { tag: '{local}', label: 'Local' },
+                      { tag: '{responsavel}', label: 'Responsável' },
+                      { tag: '{turno}', label: 'Turno' },
+                      { tag: '{data}', label: 'Data' },
+                      { tag: '{hora}', label: 'Hora' },
+                      { tag: '{total_cheios}', label: 'Tot. Cheios' },
+                      { tag: '{total_vazios}', label: 'Tot. Vazios' },
+                      { tag: '{total_geral}', label: 'Tot. Geral' },
+                      { tag: '{total_tipos}', label: 'Qtd Tipos' },
+                      { tag: '{itens}', label: 'Lista {itens}' },
+                      { tag: '{alertas}', label: 'Bloco Alertas' },
+                      { tag: '{estoque_baixo}', label: 'Lista Baixos' },
+                    ].map(({ tag, label }) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => handleInsertTag(tag)}
+                        title={`${tag} (clique para inserir)`}
+                        className="px-1.5 py-0.5 text-[10px] rounded font-mono bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition-colors"
+                      >
+                        {label} <span className="opacity-60">{tag}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Configuração avançada da linha {itens} (quando não usa [item]) */}
+              <div className="rounded-xl border border-purple-200/60 dark:border-purple-800/40 bg-purple-100/40 dark:bg-purple-950/40 overflow-hidden">
                 <button
                   type="button"
-                  onClick={() => handleCustomTemplateChange(DEFAULT_CUSTOM_TEMPLATE)}
-                  className="text-[11px] text-purple-700 dark:text-purple-400 hover:underline font-medium"
+                  onClick={() => setShowItemConfig(!showItemConfig)}
+                  className="w-full px-3 py-2 text-left flex items-center justify-between text-xs font-semibold text-purple-900 dark:text-purple-200 hover:bg-purple-100/70 dark:hover:bg-purple-900/40 transition-colors"
                 >
-                  Restaurar padrão
+                  <span className="flex items-center gap-1.5">
+                    <span>⚙️ Formato da Linha para a tag <code className="font-mono text-[11px] font-bold">{'{itens}'}</code></span>
+                    <span className="text-[10px] text-purple-600 dark:text-purple-400 font-normal">
+                      (aplicado automaticamente em cada cilindro)
+                    </span>
+                  </span>
+                  {showItemConfig ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 </button>
-              </div>
-              <textarea
-                rows={5}
-                value={customTemplate}
-                onChange={(e) => handleCustomTemplateChange(e.target.value)}
-                placeholder="Insira as tags: {local}, {responsavel}, {turno}, {data}, {hora}, {itens}, {total_cheios}, {total_vazios}, {total_geral}"
-                className="w-full text-xs font-mono p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-purple-300 dark:border-purple-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-              />
-              <div className="text-[11px] text-purple-800 dark:text-purple-300 flex flex-wrap gap-1">
-                <span className="font-semibold">Tags disponíveis:</span>
-                <code>{'{local}'}</code>, <code>{'{responsavel}'}</code>, <code>{'{turno}'}</code>,{' '}
-                <code>{'{data}'}</code>, <code>{'{itens}'}</code>, <code>{'{estoque_baixo}'}</code>, <code>{'{total_cheios}'}</code>,{' '}
-                <code>{'{total_vazios}'}</code>, <code>{'{total_geral}'}</code>
+
+                {showItemConfig && (
+                  <div className="p-3 border-t border-purple-200/60 dark:border-purple-800/40 space-y-2 bg-white/50 dark:bg-slate-900/40">
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                      Caso o seu modelo principal contenha <code className="font-mono text-purple-700 dark:text-purple-300 font-bold">{'{itens}'}</code>, cada cilindro será formatado de acordo com o padrão abaixo:
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        ref={itemInputRef}
+                        type="text"
+                        value={customItemTemplate}
+                        onFocus={() => setLastFocusedField('item')}
+                        onChange={(e) => handleCustomItemTemplateChange(e.target.value)}
+                        placeholder="Ex: • {nome}: {cheios} CH / {vazios} VZ (Tot: {total}){alerta}{obs}"
+                        className="flex-1 text-xs font-mono px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-purple-300 dark:border-purple-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleCustomItemTemplateChange(DEFAULT_CUSTOM_ITEM_TEMPLATE)}
+                        className="px-2 py-1 text-[11px] font-medium text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/50 hover:bg-purple-200 dark:hover:bg-purple-800 rounded-lg whitespace-nowrap transition-colors"
+                      >
+                        Padrão
+                      </button>
+                    </div>
+
+                    {/* Exemplo de renderização da linha em tempo real */}
+                    <div className="text-[11px] p-2 rounded-lg bg-slate-100 dark:bg-slate-800/80 font-mono text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 block mb-0.5">
+                        Exemplo de Linha Renderizada:
+                      </span>
+                      {formatSingleItemWithTemplate(
+                        counters[0] || {
+                          id: 'demo',
+                          label: 'Oxigênio Medicinal',
+                          full: 8,
+                          empty: 3,
+                          notes: 'Setor A',
+                          isFavorite: true,
+                          expanded: false,
+                          minStock: 2,
+                        },
+                        customItemTemplate,
+                        settings
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -614,6 +918,159 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           )}
         </div>
       </div>
+
+      {/* Modal Assistente de Prompt para LLM */}
+      {showPromptModal && (
+        <div
+          className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={() => setShowPromptModal(false)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800/80 w-full max-w-xl max-h-[90vh] flex flex-col rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="px-5 py-3.5 border-b border-purple-100 dark:border-purple-900/50 bg-linear-to-r from-purple-500/10 via-indigo-500/5 to-transparent flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-950 text-purple-600 dark:text-purple-300 flex items-center justify-center shadow-xs">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <span>Criar Layout com IA (LLM)</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 font-semibold">
+                      ChatGPT • Claude • Gemini
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Copie o prompt detalhado e peça para uma inteligência artificial desenhar seu relatório ideal
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowPromptModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+                aria-label="Fechar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+              {/* Estilos Rápidos */}
+              <div>
+                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                  1. Escolha o objetivo ou estilo do layout:
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                  {[
+                    { id: 'WhatsApp com Emojis', label: '📱 WhatsApp com Emojis' },
+                    { id: 'Plantão Hospitalar / UTI', label: '🏥 Plantão Hospitalar' },
+                    { id: 'Tabela Markdown / Monospaçado', label: '📊 Tabela Markdown' },
+                    { id: 'Compacto para SMS e Rádio', label: '📻 Compacto / Rádio' },
+                    { id: 'Auditoria e Engenharia Clínica', label: '📋 Auditoria Formal' },
+                    { id: 'Outro (Personalizado)', label: '✨ Estilo Livre' },
+                  ].map(item => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setPromptStyle(item.id)}
+                      className={`px-2.5 py-2 rounded-xl border text-left font-medium transition-all ${
+                        promptStyle === item.id
+                          ? 'bg-purple-50 dark:bg-purple-950/60 border-purple-500 text-purple-900 dark:text-purple-200 ring-2 ring-purple-500/20 shadow-xs'
+                          : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Instrução extra personalizada */}
+              <div>
+                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">
+                  2. Instruções extras para a IA (opcional):
+                </label>
+                <input
+                  type="text"
+                  value={customPromptNote}
+                  onChange={(e) => setCustomPromptNote(e.target.value)}
+                  placeholder="Ex: Destaque o oxigênio medicinal, use divisórias duplas e inclua aviso para a farmácia..."
+                  className="w-full text-xs px-3 py-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+
+              {/* Prévia do Prompt */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                    3. Pré-visualização do Prompt que será copiado:
+                  </label>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                    Contém todas as variáveis de cabeçalho e de linha
+                  </span>
+                </div>
+                <textarea
+                  readOnly
+                  rows={7}
+                  value={generateLlmPrompt(
+                    customPromptNote.trim()
+                      ? `${promptStyle} - ${customPromptNote.trim()}`
+                      : promptStyle
+                  )}
+                  className="w-full p-2.5 font-mono text-[11px] leading-relaxed rounded-xl bg-slate-950 text-purple-200 border border-slate-800 focus:outline-none select-all"
+                />
+              </div>
+
+              {/* Passo a Passo */}
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60">
+                <span className="font-bold text-slate-800 dark:text-slate-200 block mb-1">
+                  💡 Como funciona:
+                </span>
+                <ol className="list-decimal list-inside space-y-1 text-slate-600 dark:text-slate-400 text-[11px]">
+                  <li>Clique no botão abaixo para copiar o prompt completo.</li>
+                  <li>Abra o ChatGPT, Claude, Gemini, DeepSeek ou Copilot e cole o prompt.</li>
+                  <li>A IA responderá apenas com o modelo de texto pronto.</li>
+                  <li>Copie o resultado e cole no campo <strong>Modelo Personalizado</strong> no app!</li>
+                </ol>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 flex items-center justify-between gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowPromptModal(false)}
+                className="px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-colors"
+              >
+                Fechar
+              </button>
+
+              <button
+                type="button"
+                onClick={handleCopyModalLlmPrompt}
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-xs sm:text-sm font-bold text-white bg-linear-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 rounded-lg shadow-sm transition-all focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 active:scale-98"
+              >
+                {modalPromptCopied ? (
+                  <>
+                    <Check className="w-4 h-4 stroke-[3]" />
+                    <span>Prompt Copiado com Sucesso!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4" />
+                    <span>Copiar Prompt para a IA</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
